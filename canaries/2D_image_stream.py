@@ -4,6 +4,7 @@ from utils import Fps
 import cv2
 import datetime
 import numpy as np
+import json
 
 from PIL import ImageDraw
 from viam.components.camera import Camera
@@ -24,6 +25,7 @@ parser.add_argument('--coordinates', nargs=2, type=int, default=(0, 0), metavar=
 
 parser.add_argument('--cam', type=str, required=True, metavar='CAMERA_NAME', help='the name of the camera')
 parser.add_argument('--webhook', type=str, help='the webhook to send logging info')
+parser.add_argument('--data', type=str)
 
 args = parser.parse_args()
 
@@ -47,18 +49,24 @@ async def close_robot(robot):
         logging.info("robot closed")
 
 
-async def image_stream(robot):
+async def image_stream(robot, data):
     fps = Fps()
     cam_name = args.cam
     cam = Camera.from_robot(robot, cam_name)
+    props = await Camera.get_properties(cam)
+    print(f"props={props}")
     logging.info(f"found camera {cam_name}")
     while True:
         pil_img = await cam.get_image()
         fps.record()
 
         draw = ImageDraw.Draw(pil_img)
-        draw.rectangle((0, 0, 75, 25), outline='black')
-        draw.text(xy=(18, 7.5), text=f'{fps.get()} FPS', fill='white')
+        # draw.text(xy=(100, 7.5), text=f'{fps.get()} FPS', fill='black')
+
+        pos = (18, 7.5)
+        bbox = draw.textbbox(pos, text=f'{str(data)}')
+        draw.rectangle(bbox, outline='black')
+        draw.text(pos, text=f'{str(data)}', fill='black')
 
         open_cv_image = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
 
@@ -76,7 +84,10 @@ async def main():
     try:
         robot = await connect()
         logging.info("finished connecting to robot client")
-        await image_stream(robot)
+        f = open(args.data)
+        data = json.load(f)
+        data = json.dumps(data, indent=2)
+        await image_stream(robot, data)
     except Exception as e:
         logging.info(f"caught exception '{e}'")
         if args.webhook is not None:
