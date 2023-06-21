@@ -1,4 +1,4 @@
-// # set up creds
+// set up credentials
 // $ STACKDRIVER_PROJECT_ID="engineering-tools-310515" go run cam1.go
 package main
 
@@ -31,6 +31,7 @@ func connect(logger golog.Logger) (*client.RobotClient, error) {
 	)
 }
 
+// For data see "Trace Explorer" in GCP (https://console.cloud.google.com/traces/list?referrer=search&project=engineering-tools-310515)
 func main() {
 	logger := golog.NewDevelopmentLogger("client")
 	handleErr := func(err error) {
@@ -52,6 +53,7 @@ func main() {
 
 	defer stream.Close(ctx)
 
+	// STACKDRIVER_PROJECT_ID must be set before this step!
 	opts := perf.CloudOptions{
 		Context:      ctx,
 		Logger:       logger,
@@ -66,15 +68,16 @@ func main() {
 
 	defer exporter.Stop()
 
+	// TODO: use unique name for this so we can distinguish in GCP. See examples of StartSpan in RDK
+	ctx, span := trace.StartSpan(ctx, "Canary")
 	for {
-		// TODO: use unique name for this so we can distinguish in GCP
-		//  example: ctx, span := trace.StartSpan(ctx, "example.com/Run")
-		ctx, span := trace.StartSpan(ctx, "Canary")
 
 		// TODO: need to get distributed tracing working, so it nests the Read call inside of this call to Next.
 		//  Otherwise, they look like two separate calls.
-		// TODO: if guard code in hotspot areas... or maybe everywhere.
-		// TODO: add telemetry to decodes and encodes
+		// 	For a working solution see how https://github.com/viamrobotics/rdk/blob/5c7649e6e51a52f5f7dc36f7547ec4e9a18ff056/rimage/image_file.go#L266
+		// 	appears nested under https://github.com/viamrobotics/rdk/blob/5c7649e6e51a52f5f7dc36f7547ec4e9a18ff056/components/camera/client.go#L61
+		// TODO: ensure Next calls StartSpan. See https://github.com/viamrobotics/gostream/blob/44932aa9195421119c27661c6d88afa89c75c1b9/media.go#L379
+		// 	for USB cameras.
 		_, _, err := stream.Next(ctx)
 		logger.Info("got image")
 		handleErr(err)
